@@ -1,0 +1,17 @@
+{
+  "name": "investment-platform",
+  "private": true,
+  "packageManager": "pnpm@10.8.0",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "dev:web": "pnpm --dir apps/web dev",
+    "build:web": "pnpm --dir apps/web build",
+    "lint:web": "pnpm --dir apps/web lint",
+    "test:web": "pnpm --dir apps/web test",
+    "dev:api": "./apps/api/gradlew -p apps/api bootRun",
+    "build:api": "./apps/api/gradlew -p apps/api build",
+    "test:api": "./apps/api/gradlew -p apps/api test"
+  }
+}

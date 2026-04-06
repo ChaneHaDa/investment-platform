@@ -1,0 +1,25 @@
+.DS_Store
+
+# Node
+node_modules/
+.pnpm-store/
+.next/
+coverage/
+
+# Java / Gradle
+.gradle/
+build/
+out/
+
+# Logs
+logs/
+*.log
+
+# Env
+.env
+.env.*
+!.env.example
+
+# IDE
+.idea/
+.vscode/
