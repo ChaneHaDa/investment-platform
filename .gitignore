@@ -5,6 +5,7 @@ node_modules/
 .pnpm-store/
 .next/
 coverage/
+*.tsbuildinfo
 
 # Java / Gradle
 .gradle/
@@ -19,6 +20,9 @@ logs/
 .env
 .env.*
 !.env.example
+
+# Package manager
+package-lock.json
 
 # IDE
 .idea/

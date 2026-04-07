@@ -1,0 +1,19 @@
+services:
+  postgresql:
+    image: postgres:15
+    container_name: postgresql
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 1234
+      POSTGRES_DB: test1
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:7.0
+    container_name: redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: [ "redis-server", "--requirepass", "" ]

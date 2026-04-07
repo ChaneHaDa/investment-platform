@@ -12,6 +12,8 @@
     "test:web": "pnpm --dir apps/web test",
     "dev:api": "./apps/api/gradlew -p apps/api bootRun",
     "build:api": "./apps/api/gradlew -p apps/api build",
-    "test:api": "./apps/api/gradlew -p apps/api test"
+    "test:api": "./apps/api/gradlew -p apps/api test",
+    "dev:infra": "docker compose -f infra/docker-compose.yml up -d",
+    "stop:infra": "docker compose -f infra/docker-compose.yml down"
   }
 }

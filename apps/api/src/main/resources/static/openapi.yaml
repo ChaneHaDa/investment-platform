@@ -1,0 +1,1301 @@
+openapi: 3.0.0
+info:
+  title: Portfolio Backtest API
+  description: Create a portfolio and backtest it
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8080
+    description: Development server
+  - url: https://api.example.com
+    description: Production server
+
+components:
+  securitySchemes:
+    bearer-jwt:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT Authorization header using the Bearer scheme.
+
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: error
+        code:
+          type: string
+          example: ERROR_CODE
+        message:
+          type: string
+          example: 에러 메시지
+        data:
+          type: object
+          nullable: true
+
+    SuccessResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: success
+        message:
+          type: string
+          nullable: true
+        data:
+          type: object
+
+    # Auth Schemas
+    LoginRequest:
+      type: object
+      required:
+        - id
+        - password
+      properties:
+        id:
+          type: string
+          description: 사용자 아이디
+        password:
+          type: string
+          description: 비밀번호
+          format: password
+
+    RegisterRequest:
+      type: object
+      required:
+        - username
+        - password
+        - email
+        - name
+        - phoneNumber
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 20
+          description: 사용자 아이디
+        password:
+          type: string
+          minLength: 8
+          description: 비밀번호
+          format: password
+        email:
+          type: string
+          format: email
+          description: 이메일
+        name:
+          type: string
+          minLength: 2
+          maxLength: 50
+          description: 이름
+        phoneNumber:
+          type: string
+          description: 전화번호
+
+    UserResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        phoneNumber:
+          type: string
+
+    LoginResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+          description: JWT 액세스 토큰
+
+    # Portfolio Schemas
+    PortfolioItemRequest:
+      type: object
+      required:
+        - stockId
+        - weight
+      properties:
+        stockId:
+          type: integer
+          description: 주식 ID
+        weight:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          description: 포트폴리오 비중 (0~1)
+
+    PortfolioRequest:
+      type: object
+      required:
+        - name
+        - amount
+        - startDate
+        - endDate
+        - portfolioItemRequestDTOList
+      properties:
+        name:
+          type: string
+          maxLength: 100
+          description: 포트폴리오 이름
+        description:
+          type: string
+        amount:
+          type: integer
+          format: int64
+          description: 투자 금액
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        ror:
+          type: number
+          format: float
+        volatility:
+          type: number
+          format: float
+        price:
+          type: number
+          format: float
+        portfolioItemRequestDTOList:
+          type: array
+          items:
+            $ref: '#/components/schemas/PortfolioItemRequest'
+
+    PortfolioResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+        amount:
+          type: integer
+          format: int64
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        ror:
+          type: number
+          format: float
+        volatility:
+          type: number
+          format: float
+        price:
+          type: number
+          format: float
+
+    PortfolioDetailItemResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+        stockId:
+          type: integer
+        name:
+          type: string
+        weight:
+          type: number
+          format: float
+
+    PortfolioDetailResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+        amount:
+          type: integer
+          format: int64
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        ror:
+          type: number
+          format: float
+        volatility:
+          type: number
+          format: float
+        price:
+          type: number
+          format: float
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PortfolioDetailItemResponse'
+
+    PortfolioBacktestRequestItem:
+      type: object
+      required:
+        - weight
+      properties:
+        stockId:
+          type: integer
+          description: 기존 종목 ID
+        stockName:
+          type: string
+          description: 기존 종목명(표시용)
+        customStockName:
+          type: string
+          description: 사용자 정의 종목명
+        annualReturnRate:
+          type: number
+          format: float
+          minimum: -100
+          maximum: 1000
+          description: 사용자 정의 연수익률(%)
+        weight:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          description: 포트폴리오 비중 (0~1)
+
+    RebalanceFrequency:
+      type: string
+      description: 리밸런싱 주기
+      enum:
+        - NONE
+        - DAILY
+        - MONTHLY
+        - QUARTERLY
+        - YEARLY
+      example: MONTHLY
+
+    PortfolioBacktestRequest:
+      type: object
+      required:
+        - startDate
+        - endDate
+        - portfolioBacktestRequestItemDTOList
+      properties:
+        startDate:
+          type: string
+          format: date
+          description: 백테스트 시작일
+        endDate:
+          type: string
+          format: date
+          description: 백테스트 종료일
+        amount:
+          type: integer
+          format: int64
+          description: 초기 투자 금액
+          default: 100000
+        rebalanceFrequency:
+          $ref: '#/components/schemas/RebalanceFrequency'
+          default: DAILY
+        portfolioBacktestRequestItemDTOList:
+          type: array
+          description: 포트폴리오 항목 목록
+          items:
+            $ref: '#/components/schemas/PortfolioBacktestRequestItem'
+
+    PortfolioBacktestResponseItem:
+      type: object
+      properties:
+        name:
+          type: string
+        totalRor:
+          type: number
+          format: float
+        monthlyRor:
+          type: object
+          additionalProperties:
+            type: number
+            format: float
+
+    PortfolioBacktestResponse:
+      type: object
+      properties:
+        totalRor:
+          type: number
+          format: float
+          description: 전체 복리 수익률(%)
+        totalAmount:
+          type: integer
+          format: int64
+        volatility:
+          type: number
+          format: float
+        monthlyRor:
+          type: object
+          additionalProperties:
+            type: number
+            format: float
+        monthlyAmount:
+          type: object
+          additionalProperties:
+            type: integer
+            format: int64
+        portfolioBacktestResponseItemDTOList:
+          type: array
+          items:
+            $ref: '#/components/schemas/PortfolioBacktestResponseItem'
+
+    # Stock Schemas
+    StockResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        shortCode:
+          type: string
+        isinCode:
+          type: string
+        marketCategory:
+          type: string
+
+    StockSearchResponse:
+      type: object
+      properties:
+        stockId:
+          type: integer
+        name:
+          type: string
+        shortCode:
+          type: string
+        marketCategory:
+          type: string
+
+    StockPrice:
+      type: object
+      properties:
+        id:
+          type: integer
+        closePrice:
+          type: number
+        openPrice:
+          type: number
+        lowPrice:
+          type: number
+        highPrice:
+          type: number
+        tradeQuantity:
+          type: integer
+          format: int64
+        tradeAmount:
+          type: integer
+          format: int64
+        issuedCount:
+          type: integer
+          format: int64
+        baseDate:
+          type: string
+          format: date
+
+    # Index Schemas
+    IndexInfoResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        category:
+          type: string
+
+    IndexSearchResponse:
+      type: object
+      properties:
+        indexId:
+          type: integer
+        name:
+          type: string
+        category:
+          type: string
+
+    IndexBacktestRequest:
+      type: object
+      required:
+        - startDate
+        - endDate
+      properties:
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        initialAmount:
+          type: integer
+          format: int64
+          default: 10000000
+          description: 현재 입력은 수신되지만 계산에는 반영되지 않습니다.
+
+    IndexBacktestResponse:
+      type: object
+      properties:
+        totalRor:
+          type: number
+          format: float
+        volatility:
+          type: number
+          format: float
+        monthlyRor:
+          type: object
+          additionalProperties:
+            type: number
+            format: float
+
+    IndexPrice:
+      type: object
+      properties:
+        id:
+          type: integer
+        closePrice:
+          type: number
+        openPrice:
+          type: number
+        lowPrice:
+          type: number
+        highPrice:
+          type: number
+        yearlyDiff:
+          type: number
+        baseDate:
+          type: string
+          format: date
+
+    # Pagination
+    PaginatedResponse:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            type: object
+        totalElements:
+          type: integer
+        totalPages:
+          type: integer
+        size:
+          type: integer
+        number:
+          type: integer
+        first:
+          type: boolean
+        last:
+          type: boolean
+
+tags:
+  - name: Auth
+    description: 인증, 인가 API
+  - name: Portfolio
+    description: 포트폴리오 백테스트 API
+  - name: Stock
+    description: 주식 정보 및 가격 조회 API
+  - name: Stock Price
+    description: 주식 가격 조회 API
+  - name: Index
+    description: 지수 정보 조회 API
+  - name: Index Price
+    description: 지수 가격 정보 조회 API
+
+paths:
+  /api/v1/auth/register:
+    post:
+      tags:
+        - Auth
+      summary: 회원가입
+      description: 새로운 사용자를 등록합니다. 이메일 인증이 완료된 상태여야 합니다.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: 회원 가입 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+              example:
+                status: success
+                message: 회원가입 성공
+                data:
+                  id: 1
+                  username: testuser
+                  email: test@example.com
+                  name: 한기찬
+                  phoneNumber: 010-1234-5678
+        '409':
+          description: 사용자 중복 (아이디 또는 이메일)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                status: error
+                code: USER_ALREADY_EXISTS
+                message: 이미 사용 중인 아이디입니다.
+        '400':
+          description: 이메일 인증 미완료
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/auth/login:
+    post:
+      tags:
+        - Auth
+      summary: 로그인
+      description: 사용자 인증을 통해 JWT 토큰을 발급받습니다.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: 로그인 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+              example:
+                status: success
+                message: 로그인 성공
+                data:
+                  accessToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        '401':
+          description: 인증 실패
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                status: error
+                code: AUTH_FAILED
+                message: 아이디/비밀번호가 일치하지 않습니다.
+
+  /api/v1/auth/check-username:
+    get:
+      tags:
+        - Auth
+      summary: 아이디 중복 체크
+      description: 사용 가능한 아이디인지 확인합니다.
+      parameters:
+        - name: username
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 아이디 사용 가능
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '409':
+          description: 아이디 중복됨
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '400':
+          description: 잘못된 요청 파라미터
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/auth/check-email:
+    get:
+      tags:
+        - Auth
+      summary: 이메일 중복 체크
+      description: 사용 가능한 이메일인지 확인합니다.
+      parameters:
+        - name: email
+          in: query
+          required: true
+          schema:
+            type: string
+            format: email
+      responses:
+        '200':
+          description: 이메일 사용 가능
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '409':
+          description: 이메일 중복됨
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/auth/initiate-email:
+    get:
+      tags:
+        - Auth
+      summary: 이메일 인증 요청
+      description: 사용자가 입력한 이메일로 인증 토큰을 발송합니다.
+      parameters:
+        - name: email
+          in: query
+          required: true
+          schema:
+            type: string
+            format: email
+      responses:
+        '200':
+          description: 인증 이메일 발송 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /api/v1/auth/verify-email:
+    get:
+      tags:
+        - Auth
+      summary: 이메일 인증 토큰 검증
+      description: 사용자가 입력한 이메일과 인증 토큰을 검증합니다.
+      parameters:
+        - name: email
+          in: query
+          required: true
+          schema:
+            type: string
+            format: email
+        - name: token
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 인증 토큰 확인 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /api/v1/portfolios/backtest:
+    post:
+      tags:
+        - Portfolio
+      summary: 포트폴리오 백테스팅
+      description: 포트폴리오 구성과 기간을 입력받아 백테스팅 결과를 계산합니다.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PortfolioBacktestRequest'
+            examples:
+              stockIdPortfolio:
+                summary: 기존 종목 포트폴리오 예시
+                value:
+                  startDate: "2023-01-01"
+                  endDate: "2023-12-31"
+                  amount: 1000000
+                  rebalanceFrequency: "MONTHLY"
+                  portfolioBacktestRequestItemDTOList:
+                    - stockId: 1
+                      weight: 0.6
+                    - stockId: 2
+                      weight: 0.4
+              customStockPortfolio:
+                summary: 사용자 정의 종목 포트폴리오 예시
+                value:
+                  startDate: "2023-01-01"
+                  endDate: "2023-12-31"
+                  amount: 1000000
+                  rebalanceFrequency: "QUARTERLY"
+                  portfolioBacktestRequestItemDTOList:
+                    - customStockName: "나만의성장주"
+                      annualReturnRate: 12.5
+                      weight: 0.7
+                    - customStockName: "나만의배당주"
+                      annualReturnRate: 6.2
+                      weight: 0.3
+              mixedPortfolio:
+                summary: 기존+사용자 정의 혼합 예시
+                value:
+                  startDate: "2023-01-01"
+                  endDate: "2023-12-31"
+                  amount: 1000000
+                  rebalanceFrequency: "YEARLY"
+                  portfolioBacktestRequestItemDTOList:
+                    - stockId: 1
+                      weight: 0.5
+                    - customStockName: "커스텀알파"
+                      annualReturnRate: 9.8
+                      weight: 0.5
+      responses:
+        '200':
+          description: 백테스팅 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+              example:
+                status: success
+                data:
+                  totalRor: 15.5
+                  totalAmount: 11550000
+                  volatility: 8.2
+                  monthlyRor:
+                    "2024-01-01": 1.2
+                    "2024-02-01": 0.8
+        '400':
+          description: 잘못된 입력값
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 주식 정보를 찾을 수 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/portfolios:
+    post:
+      tags:
+        - Portfolio
+      summary: 포트폴리오 저장
+      description: 사용자가 만든 포트폴리오를 저장하고 결과를 반환합니다.
+      security:
+        - bearer-jwt: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PortfolioRequest'
+      responses:
+        '201':
+          description: 포트폴리오 저장 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          description: 잘못된 입력값으로 저장 실패
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    get:
+      tags:
+        - Portfolio
+      summary: 사용자 포트폴리오 리스트 조회
+      description: 로그인한 사용자가 저장한 모든 포트폴리오 리스트 반환
+      security:
+        - bearer-jwt: []
+      responses:
+        '200':
+          description: 포트폴리오 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '401':
+          description: 인증되지 않은 사용자
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 접근 권한 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/portfolios/{id}:
+    get:
+      tags:
+        - Portfolio
+      summary: 포트폴리오 상세 조회
+      description: 포트폴리오 및 구성요소 상세 조회
+      security:
+        - bearer-jwt: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 포트폴리오 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '404':
+          description: 포트폴리오가 존재하지 않음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      tags:
+        - Portfolio
+      summary: 포트폴리오 삭제
+      description: 포트폴리오 삭제
+      security:
+        - bearer-jwt: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 포트폴리오 삭제 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+    put:
+      tags:
+        - Portfolio
+      summary: 포트폴리오 업데이트
+      description: 포트폴리오 내용을 업데이트합니다.
+      security:
+        - bearer-jwt: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PortfolioRequest'
+      responses:
+        '200':
+          description: 포트폴리오 업데이트 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /api/v1/stocks:
+    get:
+      tags:
+        - Stock
+      summary: 주식 목록 조회
+      description: 쿼리로 주식 목록 조회
+      parameters:
+        - name: name
+          in: query
+          schema:
+            type: string
+          description: 주식 이름
+        - name: shortCode
+          in: query
+          schema:
+            type: string
+          description: 종목 코드
+        - name: isinCode
+          in: query
+          schema:
+            type: string
+          description: ISIN 코드
+        - name: q
+          in: query
+          schema:
+            type: string
+          description: 검색어 (이름, 코드 포괄 검색)
+      responses:
+        '200':
+          description: 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          description: 잘못된 입력값
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 주식 정보 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/stocks/{id}:
+    get:
+      tags:
+        - Stock
+      summary: 특정 주식 검색
+      description: id로 주식 상세 조회
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          description: 잘못된 요청값
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 주식 정보 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/stocks/{stock_id}/prices:
+    get:
+      tags:
+        - Stock Price
+      summary: 주식 가격 조회
+      description: 주식 ID로 해당 주식의 가격 정보를 조회합니다. 기간 설정시 해당 기간의 가격 데이터를 반환합니다.
+      parameters:
+        - name: stock_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: 주식 ID
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date
+          description: 시작일 (yyyy-MM-dd)
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date
+          description: 종료일 (yyyy-MM-dd)
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 0
+          description: 페이지 번호 (0부터 시작)
+        - name: size
+          in: query
+          schema:
+            type: integer
+            default: 100
+            minimum: 1
+            maximum: 1000
+          description: 페이지 크기
+        - name: sort
+          in: query
+          schema:
+            type: string
+            default: baseDate
+          description: 정렬 필드
+        - name: direction
+          in: query
+          schema:
+            type: string
+            default: DESC
+            enum: [ASC, DESC]
+          description: 정렬 방향
+      responses:
+        '200':
+          description: 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+              example:
+                status: success
+                data:
+                  content:
+                    - id: 1
+                      closePrice: 50000
+                      openPrice: 49500
+                      lowPrice: 49000
+                      highPrice: 50500
+                      tradeQuantity: 12345
+                      tradeAmount: 617250000
+                      issuedCount: 1234567890
+                      baseDate: 2024-01-01
+                  totalElements: 2500
+                  totalPages: 25
+                  size: 100
+                  number: 0
+                  first: true
+                  last: false
+        '404':
+          description: 주식 정보 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '400':
+          description: 잘못된 요청 파라미터
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/indexs:
+    get:
+      tags:
+        - Index
+      summary: 지수 목록 조회
+      description: 쿼리로 지수 목록 조회
+      parameters:
+        - name: name
+          in: query
+          schema:
+            type: string
+          description: 지수 이름
+        - name: category
+          in: query
+          schema:
+            type: string
+          description: 카테고리
+        - name: q
+          in: query
+          schema:
+            type: string
+          description: 검색어
+      responses:
+        '200':
+          description: 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          description: 잘못된 입력값
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 지수 정보 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/indexs/{id}:
+    get:
+      tags:
+        - Index
+      summary: 특정 지수 기본 정보 조회
+      description: id로 지수 상세 조회
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '404':
+          description: 지수 정보 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '400':
+          description: 잘못된 요청 파라미터
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/indexs/{id}/portfolios:
+    get:
+      tags:
+        - Index
+      summary: 지수 기반 백테스트
+      description: 지수를 기반으로 백테스트를 수행합니다.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: 지수 ID
+        - name: startDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+          description: 시작일
+        - name: endDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+          description: 종료일
+        - name: initialAmount
+          in: query
+          schema:
+            type: number
+            default: 10000000
+          description: 초기 투자 금액
+      responses:
+        '200':
+          description: 백테스트 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          description: 잘못된 요청
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 지수 정보 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/indexs/{index_id}/prices:
+    get:
+      tags:
+        - Index Price
+      summary: 지수 가격 조회
+      description: 지수 ID로 해당 지수의 가격 정보를 조회합니다. 기간 설정시 해당 기간의 가격 데이터를 반환합니다.
+      parameters:
+        - name: index_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: 지수 ID
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date
+          description: 시작일 (yyyy-MM-dd)
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date
+          description: 종료일 (yyyy-MM-dd)
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 0
+          description: 페이지 번호 (0부터 시작)
+        - name: size
+          in: query
+          schema:
+            type: integer
+            default: 100
+            minimum: 1
+            maximum: 1000
+          description: 페이지 크기
+        - name: sort
+          in: query
+          schema:
+            type: string
+            default: baseDate
+          description: 정렬 필드
+        - name: direction
+          in: query
+          schema:
+            type: string
+            default: DESC
+            enum: [ASC, DESC]
+          description: 정렬 방향
+      responses:
+        '200':
+          description: 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+              example:
+                status: success
+                data:
+                  content:
+                    - id: 1
+                      closePrice: 2500.5
+                      openPrice: 2480.3
+                      lowPrice: 2470.1
+                      highPrice: 2510.8
+                      yearlyDiff: 5.2
+                      baseDate: 2024-01-01
+                  totalElements: 2500
+                  totalPages: 25
+                  size: 100
+                  number: 0
+                  first: true
+                  last: false
+        '404':
+          description: 지수 정보 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '400':
+          description: 잘못된 요청 파라미터
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
